@@ -1,10 +1,16 @@
 import os
 import pandas as pd
+# pyrefly: ignore [missing-import]
 from load_data import DATA_PATH
 
-PREPROCESSED_PATH = r"D:\SEM4\ML\Placement_Prediction\Data\placement_predict_preprocessed.csv"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PREPROCESSED_PATH = os.path.join(BASE_DIR, "Data", "placement_predict_preprocessed.csv")
 
-def run_preprocessing(input_path: str = DATA_PATH, output_path: str = PREPROCESSED_PATH) -> dict:
+def run_preprocessing(input_path: str = None, output_path: str = None) -> dict:
+    if input_path is None:
+        input_path = DATA_PATH
+    if output_path is None:
+        output_path = PREPROCESSED_PATH
     df = pd.read_csv(input_path)
     initial_shape = df.shape
     df = df.drop(columns=["StudentID"])

@@ -43,11 +43,15 @@
                 </a>
             </li>
 
-            <li class="menu-item disabled">
-                Model Training (coming soon)
+            <li>
+                <a href="{{ url_for('model_training_route') }}" class="menu-item {% if active == 'model-training' %}active{% endif %}">
+                    Linear Regression Training
+                </a>
             </li>
-            <li class="menu-item disabled">
-                Prediction (coming soon)
+            <li>
+                <a href="{{ url_for('prediction_route') }}" class="menu-item {% if active == 'prediction' %}active{% endif %}">
+                    Salary Prediction
+                </a>
             </li>
         </ul>
     </nav>

@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+
+{% block title %}Linear Regression - Placement Prediction Project{% endblock %}
+
+{% block content %}
+    <div class="page-header">
+        <h2>Linear Regression Model</h2>
+        <p>Train and evaluate Linear Regression algorithms to predict student <strong>Salary Package (in LPA)</strong> based on multi-dimensional academic, technical, and demographic features.</p>
+    </div>
+
+    {% if error %}
+        <div class="error">
+            {{ error }}
+        </div>
+    {% endif %}
+
+    {% if summary %}
+        <!-- Model Training Controls / Hyperparameters Toolbar -->
+        <div class="dashboard-section model-config-card">
+            <h3>⚙️ Model Configuration & Training</h3>
+            <form id="trainModelForm" method="GET" action="{{ url_for('model_training_route') }}" class="config-grid">
+                <div class="config-item">
+                    <label for="model_type"><strong>Algorithm:</strong></label>
+                    <select id="model_type" name="model_type" class="eda-select">
+                        <option value="linear" {% if params.model_type == 'linear' %}selected{% endif %}>Ordinary Least Squares (OLS)</option>
+                        <option value="ridge" {% if params.model_type == 'ridge' %}selected{% endif %}>Ridge Regression (L2 Penalty)</option>
+                        <option value="lasso" {% if params.model_type == 'lasso' %}selected{% endif %}>Lasso Regression (L1 Penalty)</option>
+                    </select>
+                </div>
+
+                <div class="config-item" id="alpha-group" style="{% if params.model_type == 'linear' %}display: none;{% endif %}">
+                    <label for="alpha"><strong>Regularization Strength (α):</strong> <span id="alpha-val">{{ params.alpha }}</span></label>
+                    <input type="range" id="alpha" name="alpha" min="0.01" max="10.0" step="0.1" value="{{ params.alpha }}" class="custom-range" oninput="document.getElementById('alpha-val').innerText = this.value">
+                </div>
+
+                <div class="config-item">
+                    <label for="test_size"><strong>Test Split Ratio:</strong> <span id="test-size-val">{{ (params.test_size * 100) | int }}%</span></label>
+                    <input type="range" id="test_size" name="test_size" min="0.10" max="0.40" step="0.05" value="{{ params.test_size }}" class="custom-range" oninput="document.getElementById('test-size-val').innerText = Math.round(this.value * 100) + '%'">
+                </div>
+
+                <div class="config-item">
+                    <label for="data_filter"><strong>Training Dataset Subset:</strong></label>
+                    <select id="data_filter" name="data_filter" class="eda-select">
+                        <option value="all" {% if params.data_filter == 'all' %}selected{% endif %}>All Students (50,000 Records)</option>
+                        <option value="placed_only" {% if params.data_filter == 'placed_only' %}selected{% endif %}>Placed Candidates Only (Salary &gt; 0)</option>
+                    </select>
+                </div>
+
+                <div class="config-item action-col">
+                    <button type="submit" class="btn btn-primary btn-glow" id="trainBtn">
+                        ⚡ Train &amp; Evaluate Model
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Metric KPI Cards -->
+        <div class="metrics-container">
+            <div class="metric-card glow-indigo">
+                <div class="metric-icon">🎯</div>
+                <div class="metric-body">
+                    <span class="metric-label">R² Score (Accuracy)</span>
+                    <div class="metric-value">{{ (summary.metrics.test_r2 * 100) | round(2) }}%</div>
+                    <span class="metric-sub">Train R²: {{ (summary.metrics.train_r2 * 100) | round(2) }}%</span>
+                </div>
+            </div>
+
+            <div class="metric-card glow-purple">
+                <div class="metric-icon">📐</div>
+                <div class="metric-body">
+                    <span class="metric-label">Adjusted R²</span>
+                    <div class="metric-value">{{ (summary.metrics.adjusted_r2 * 100) | round(2) }}%</div>
+                    <span class="metric-sub">Penalized for {{ summary.metrics.n_features }} features</span>
+                </div>
+            </div>
+
+            <div class="metric-card glow-cyan">
+                <div class="metric-icon">📉</div>
+                <div class="metric-body">
+                    <span class="metric-label">Mean Absolute Error (MAE)</span>
+                    <div class="metric-value">±{{ summary.metrics.mae }} LPA</div>
+                    <span class="metric-sub">Avg prediction error</span>
+                </div>
+            </div>
+
+            <div class="metric-card glow-amber">
+                <div class="metric-icon">📊</div>
+                <div class="metric-body">
+                    <span class="metric-label">Root Mean Sq. Error (RMSE)</span>
+                    <div class="metric-value">{{ summary.metrics.rmse }} LPA</div>
+                    <span class="metric-sub">MSE: {{ summary.metrics.mse }}</span>
+                </div>
+            </div>
+
+            <div class="metric-card glow-emerald">
+                <div class="metric-icon">🔄</div>
+                <div class="metric-body">
+                    <span class="metric-label">5-Fold Cross Validation R²</span>
+                    <div class="metric-value">{{ (summary.metrics.cv_mean * 100) | round(2) }}%</div>
+                    <span class="metric-sub">Std Dev: ±{{ summary.metrics.cv_std }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mathematical Equation Formulation -->
+        <div class="dashboard-section formula-box">
+            <div class="formula-header">
+                <h3>Linear Regression Formulation</h3>
+                <span class="pill-badge">OLS Closed-Form Solution</span>
+            </div>
+            <div class="math-expression">
+                $$\hat{y} = \beta_0 + \sum_{j=1}^{p} \beta_j X_j = \mathbf{X} (\mathbf{X}^T \mathbf{X})^{-1} \mathbf{X}^T \mathbf{y}$$
+            </div>
+            <div class="equation-rendered">
+                <strong>Fitted Equation Preview:</strong>
+                <code>{{ summary.equation_preview }}</code>
+            </div>
+            <div class="intercept-stat">
+                Baseline Intercept ($\beta_0$): <span class="intercept-val">{{ summary.intercept }} LPA</span>
+            </div>
+        </div>
+
+        <!-- Diagnostic Plots Visualizer Section -->
+        <div class="dashboard-section">
+            <div class="section-title-row">
+                <h3>📈 Diagnostic Visualizations &amp; Residual Analysis</h3>
+                <div class="btn-group diagnostic-tab-group">
+                    <button type="button" class="btn active" data-tab="actual-vs-pred">Actual vs. Predicted</button>
+                    <button type="button" class="btn" data-tab="residuals-vs-pred">Residuals Plot</button>
+                    <button type="button" class="btn" data-tab="residual-hist">Residual Distribution</button>
+                </div>
+            </div>
+
+            <!-- Tab 1: Actual vs Predicted -->
+            <div id="tab-actual-vs-pred" class="diagnostic-tab-content">
+                <div class="chart-desc">
+                    Comparing test set ground-truth salary against model predictions. Points hugging the diagonal <strong>45° ideal fit line (y = x)</strong> signify high predictive precision.
+                </div>
+                <div class="diagnostic-chart-container">
+                    <canvas id="actualVsPredChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Tab 2: Residuals vs Predicted -->
+            <div id="tab-residuals-vs-pred" class="diagnostic-tab-content hidden">
+                <div class="chart-desc">
+                    Plotting prediction residuals ($e_i = y_i - \hat{y}_i$) against predicted salaries. Uniform scattering around the <strong>Zero Error Baseline (y = 0)</strong> confirms homoscedasticity.
+                </div>
+                <div class="diagnostic-chart-container">
+                    <canvas id="residualsChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Tab 3: Residual Distribution Histogram -->
+            <div id="tab-residual-hist" class="diagnostic-tab-content hidden">
+                <div class="chart-desc">
+                    Histogram showing error normality. Centered at <strong>Mean Error: {{ summary.residual_histogram.mean }} LPA</strong> (Std Dev: {{ summary.residual_histogram.std }}, Skewness: {{ summary.residual_histogram.skew }}).
+                </div>
+                <div class="diagnostic-chart-container">
+                    <canvas id="residualHistChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature Coefficients & Importance Breakdown -->
+        <div class="dashboard-section">
+            <div class="section-title-row">
+                <h3>⚖️ Feature Coefficients &amp; Impact Weights</h3>
+                <div class="filter-pills">
+                    <button class="filter-pill active" data-filter="all">All Features ({{ summary.coefficients | length }})</button>
+                    <button class="filter-pill" data-filter="positive">Positive Boosters (+)</button>
+                    <button class="filter-pill" data-filter="negative">Negative Penalties (-)</button>
+                </div>
+            </div>
+
+            <div class="coef-grid">
+                <!-- Coefficient Chart -->
+                <div class="coef-chart-panel">
+                    <h4>Coefficient Magnitude &amp; Direction</h4>
+                    <div style="height: 480px; position: relative;">
+                        <canvas id="coefChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Coefficient Data Table -->
+                <div class="coef-table-panel">
+                    <h4>Detailed Feature Weights ($\beta_j$)</h4>
+                    <div class="table-wrapper coef-table-wrapper">
+                        <table class="data-table" id="coefTable">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Feature Name</th>
+                                    <th>Coefficient ($\beta_j$)</th>
+                                    <th>Impact Direction</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for c in summary.coefficients %}
+                                    <tr data-direction="{{ c.direction | lower }}">
+                                        <td><strong>#{{ c.rank }}</strong></td>
+                                        <td><code>{{ c.feature }}</code></td>
+                                        <td>
+                                            <span class="coef-badge {{ 'coef-pos' if c.coefficient >= 0 else 'coef-neg' }}">
+                                                {{ '+' if c.coefficient >= 0 else '' }}{{ c.coefficient }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if c.coefficient >= 0 %}
+                                                <span class="impact-pill impact-pos">▲ Positive Booster</span>
+                                            {% else %}
+                                                <span class="impact-pill impact-neg">▼ Negative Impact</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Jump to Interactive Prediction -->
+        <div class="dashboard-section callout-section">
+            <div class="callout-content">
+                <h3>Ready to test candidates with this trained model?</h3>
+                <p>Use our interactive live prediction sandbox to adjust student scores, test preset profiles, and inspect feature attribution waterfalls in real time.</p>
+            </div>
+            <a href="{{ url_for('prediction_route') }}" class="btn btn-primary btn-glow-large">
+                🎯 Launch Salary Predictor
+            </a>
+        </div>
+
+        <!-- Scripts for Dynamic Charts -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script>
+            // Algorithm selector toggle for Alpha slider
+            const modelTypeSelect = document.getElementById('model_type');
+            const alphaGroup = document.getElementById('alpha-group');
+            if (modelTypeSelect && alphaGroup) {
+                modelTypeSelect.addEventListener('change', function() {
+                    if (this.value === 'ridge' || this.value === 'lasso') {
+                        alphaGroup.style.display = 'block';
+                    } else {
+                        alphaGroup.style.display = 'none';
+                    }
+                });
+            }
+
+            // Diagnostic Tabs switching
+            const tabButtons = document.querySelectorAll('.diagnostic-tab-group .btn');
+            tabButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    tabButtons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    const tabId = btn.getAttribute('data-tab');
+                    document.querySelectorAll('.diagnostic-tab-content').forEach(c => c.classList.add('hidden'));
+                    document.getElementById('tab-' + tabId).classList.remove('hidden');
+                });
+            });
+
+            // Feature coefficient filters
+            const filterPills = document.querySelectorAll('.filter-pills .filter-pill');
+            filterPills.forEach(pill => {
+                pill.addEventListener('click', () => {
+                    filterPills.forEach(p => p.classList.remove('active'));
+                    pill.classList.add('active');
+                    const filter = pill.getAttribute('data-filter');
+                    const rows = document.querySelectorAll('#coefTable tbody tr');
+                    rows.forEach(row => {
+                        const dir = row.getAttribute('data-direction');
+                        if (filter === 'all' || dir === filter) {
+                            row.style.display = '';
+                        } else {
+                            row.style.display = 'none';
+                        }
+                    });
+                });
+            });
+
+            // Parse server data
+            const actualVsPredData = {{ summary.actual_vs_predicted | tojson }};
+            const idealMin = {{ summary.ideal_min }};
+            const idealMax = {{ summary.ideal_max }};
+            const residualsData = {{ summary.residuals_vs_predicted | tojson }};
+            const histData = {{ summary.residual_histogram | tojson }};
+            const coefData = {{ summary.coefficients | tojson }};
+
+            // Global Chart Options
+            Chart.defaults.color = '#94a3b8';
+            Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.08)';
+            Chart.defaults.font.family = "'Outfit', sans-serif";
+
+            // 1. Actual vs Predicted Chart
+            const ctxActual = document.getElementById('actualVsPredChart').getContext('2d');
+            new Chart(ctxActual, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: 'Student Candidates (Test Sample)',
+                            data: actualVsPredData,
+                            backgroundColor: 'rgba(99, 102, 241, 0.65)',
+                            borderColor: '#818cf8',
+                            pointRadius: 4,
+                            pointHoverRadius: 6
+                        },
+                        {
+                            label: 'Ideal 45° Fit Line (y = x)',
+                            data: [{x: idealMin, y: idealMin}, {x: idealMax, y: idealMax}],
+                            type: 'line',
+                            borderColor: '#34d399',
+                            borderWidth: 2,
+                            borderDash: [6, 4],
+                            fill: false,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Actual Salary Package (LPA)', font: { weight: 'bold', size: 13 } },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Predicted Salary Package (LPA)', font: { weight: 'bold', size: 13 } },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'top', labels: { boxWidth: 14 } }
+                    }
+                }
+            });
+
+            // 2. Residuals vs Predicted Chart
+            const ctxRes = document.getElementById('residualsChart').getContext('2d');
+            new Chart(ctxRes, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: 'Residual Error (e = y - ŷ)',
+                            data: residualsData,
+                            backgroundColor: 'rgba(245, 158, 11, 0.6)',
+                            borderColor: '#fbbf24',
+                            pointRadius: 4,
+                            pointHoverRadius: 6
+                        },
+                        {
+                            label: 'Zero Error Reference (e = 0)',
+                            data: [{x: 0, y: 0}, {x: idealMax, y: 0}],
+                            type: 'line',
+                            borderColor: '#ef4444',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Fitted / Predicted Salary (LPA)', font: { weight: 'bold', size: 13 } },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Residual Error (LPA)', font: { weight: 'bold', size: 13 } },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'top', labels: { boxWidth: 14 } }
+                    }
+                }
+            });
+
+            // 3. Residual Histogram Chart
+            const ctxHist = document.getElementById('residualHistChart').getContext('2d');
+            const histLabels = histData.bin_edges.slice(0, -1).map((e, idx) => `${e} to ${histData.bin_edges[idx+1]}`);
+            new Chart(ctxHist, {
+                type: 'bar',
+                data: {
+                    labels: histLabels,
+                    datasets: [{
+                        label: 'Residual Frequency Count',
+                        data: histData.counts,
+                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                        borderColor: '#60a5fa',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Residual Error Range (LPA)', font: { weight: 'bold', size: 13 } },
+                            grid: { display: false }
+                        },
+                        y: {
+                            title: { display: true, text: 'Frequency (Count)', font: { weight: 'bold', size: 13 } },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                        }
+                    }
+                }
+            });
+
+            // 4. Feature Coefficient Bar Chart
+            const ctxCoef = document.getElementById('coefChart').getContext('2d');
+            const topCoefs = coefData.slice(0, 16);
+            const coefLabels = topCoefs.map(c => c.feature);
+            const coefValues = topCoefs.map(c => c.coefficient);
+            const coefColors = coefValues.map(v => v >= 0 ? 'rgba(52, 211, 153, 0.8)' : 'rgba(248, 113, 113, 0.8)');
+            const coefBorders = coefValues.map(v => v >= 0 ? '#10b981' : '#ef4444');
+
+            new Chart(ctxCoef, {
+                type: 'bar',
+                data: {
+                    labels: coefLabels,
+                    datasets: [{
+                        label: 'Coefficient (β)',
+                        data: coefValues,
+                        backgroundColor: coefColors,
+                        borderColor: coefBorders,
+                        borderWidth: 1,
+                        borderRadius: 5
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Weight Magnitude (β_j)', font: { weight: 'bold' } },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: { font: { size: 11 } }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        </script>
+    {% endif %}
+{% endblock %}

@@ -1,11 +1,27 @@
 import os
 import pandas as pd
 
-DATA_PATH = r"C:\Users\swarn\Documents\sem_4\ML\Placement_Prediction_predict_50k Dataset.csv"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+POSSIBLE_PATHS = [
+    os.path.join(BASE_DIR, "Data", "placement_predict_50k Dataset.csv"),
+    r"C:\Users\swarn\Documents\sem_4\ML\Placement_Prediction\Data\placement_predict_50k Dataset.csv",
+    r"C:\Users\swarn\Documents\sem_4\ML\Programs\placement_predict_50k Dataset.csv",
+    r"C:\Users\swarn\Documents\sem_4\ML\Placement_Prediction_predict_50k Dataset.csv"
+]
 
-def load_data(path: str = DATA_PATH) -> pd.DataFrame:
+DATA_PATH = next((p for p in POSSIBLE_PATHS if os.path.exists(p)), POSSIBLE_PATHS[0])
+
+def load_data(path: str = None) -> pd.DataFrame:
+    if path is None:
+        path = DATA_PATH
     if not os.path.exists(path):
-        raise FileNotFoundError(f"Dataset not found at: {path}")
+        # Retry finding among possible paths
+        for p in POSSIBLE_PATHS:
+            if os.path.exists(p):
+                path = p
+                break
+        else:
+            raise FileNotFoundError(f"Dataset not found at: {path}")
     df = pd.read_csv(path)
     return df
 

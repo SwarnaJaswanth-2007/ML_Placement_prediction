@@ -27,16 +27,16 @@
         </a>
 
 
-        <div class="dashboard-card disabled">
+        <a href="{{ url_for('model_training_route') }}" class="dashboard-card">
             <div class="card-icon">🧠</div>
-            <h4>Model Training</h4>
-            <p>Select features, choose algorithms, run machine learning models, and analyze performance (coming soon).</p>
-        </div>
+            <h4>Linear Regression</h4>
+            <p>Train OLS, Ridge, or Lasso regression models, inspect R² score, RMSE, coefficients, and diagnostic residual plots.</p>
+        </a>
 
-        <div class="dashboard-card disabled">
+        <a href="{{ url_for('prediction_route') }}" class="dashboard-card">
             <div class="card-icon">🎯</div>
-            <h4>Prediction</h4>
-            <p>Input candidate details and predict placement likelihood and estimated salary packages (coming soon).</p>
-        </div>
+            <h4>Salary Prediction</h4>
+            <p>Input candidate academics, technical scores, and experience to predict estimated placement salary package in LPA.</p>
+        </a>
     </div>
 {% endblock %}
