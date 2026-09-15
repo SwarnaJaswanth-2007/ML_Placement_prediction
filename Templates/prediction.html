@@ -1,22 +1,41 @@
 {% extends "base.html" %}
 
-{% block title %}Salary Prediction - Placement Prediction Project{% endblock %}
+{% block title %}Multi-Model Salary Prediction - Placement Prediction Studio{% endblock %}
 
 {% block content %}
     <div class="page-header">
-        <h2>Student Placement Salary Predictor</h2>
-        <p>Interactive machine learning simulator powered by <strong>Linear Regression</strong>. Adjust academic metrics, coding test scores, and experience to see instant salary package estimations in LPA with feature contribution attribution.</p>
+        <h2>🎯 Multi-Model Candidate Placement &amp; Salary Simulator</h2>
+        <p>Interactive machine learning simulator powered by <strong>Linear Regression</strong> and <strong>Boosting Ensembles (AdaBoost, Gradient Boost, XGBoost, LightGBM)</strong>. Adjust student metrics in real time to simulate salary estimates, confidence bands, and feature attribution.</p>
     </div>
 
-    <!-- Quick Presets Selector -->
-    <div class="preset-container">
-        <span class="preset-label">⚡ Load Instant Student Profile:</span>
-        <div class="preset-buttons">
-            {% for key, p in presets.items() %}
-                <button type="button" class="preset-btn {% if key == 'dream_achiever' %}active{% endif %}" data-preset="{{ key }}">
-                    {{ p.name }}
-                </button>
-            {% endfor %}
+    <!-- Quick Presets Selector & Model Switcher Toolbar -->
+    <div class="dashboard-section" style="padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div>
+                <span class="preset-label" style="display: block; margin-bottom: 0.5rem;">⚡ 1-Click Candidate Presets:</span>
+                <div class="preset-buttons">
+                    {% for key, p in presets.items() %}
+                        <button type="button" class="preset-btn {% if key == 'dream_achiever' %}active{% endif %}" data-preset="{{ key }}">
+                            {{ p.name }}
+                        </button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div style="min-width: 260px;">
+                <label for="model_choice_select" style="font-size: 0.85rem; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 0.35rem;">
+                    Active Inference Engine:
+                </label>
+                <select id="model_choice_select" name="model_choice" class="eda-select" style="border-color: rgba(99, 102, 241, 0.4);">
+                    <option value="ensemble_consensus" {% if selected_model == 'ensemble_consensus' %}selected{% endif %}>🌟 Multi-Model Consensus (Ensemble Avg)</option>
+                    <option value="xgboost" {% if selected_model == 'xgboost' %}selected{% endif %}>🚀 XGBoost Regressor</option>
+                    <option value="lightgbm" {% if selected_model == 'lightgbm' %}selected{% endif %}>⚡ LightGBM Regressor</option>
+                    <option value="gradient_boost" {% if selected_model == 'gradient_boost' %}selected{% endif %}>🌲 Gradient Boosting</option>
+                    <option value="adaboost" {% if selected_model == 'adaboost' %}selected{% endif %}>🌱 AdaBoost Regressor</option>
+                    <option value="mlr_linear" {% if selected_model == 'mlr_linear' %}selected{% endif %}>📐 Multilinear OLS</option>
+                    <option value="mlr_ridge" {% if selected_model == 'mlr_ridge' %}selected{% endif %}>📐 Ridge Regression (L2)</option>
+                </select>
+            </div>
         </div>
     </div>
 
@@ -30,6 +49,8 @@
         <!-- Left: Input Controls Form -->
         <div class="predictor-form-panel">
             <form id="predictionForm" method="POST" action="{{ url_for('prediction_route') }}">
+                <input type="hidden" id="form_model_choice" name="model_choice" value="{{ selected_model }}">
+                
                 {% for gkey, group in feature_meta.items() %}
                     <div class="dashboard-section form-group-section">
                         <div class="form-section-header">
@@ -83,13 +104,13 @@
 
                 <div class="form-submit-row">
                     <button type="submit" class="btn btn-primary btn-glow-large" style="width: 100%;">
-                        🎯 Calculate Estimated Placement Salary
+                        🎯 Re-Calculate Live Prediction
                     </button>
                 </div>
             </form>
         </div>
 
-        <!-- Right: Real-time Live Prediction Card -->
+        <!-- Right: Real-time Live Prediction Card & Multi-Model Breakdown -->
         <div class="predictor-result-panel">
             <div class="sticky-prediction-card">
                 <div class="result-header">
@@ -97,247 +118,180 @@
                     <span class="result-title">Estimated Placement Package</span>
                 </div>
 
-                <!-- Salary Big Display -->
-                <div class="salary-highlight-box" id="salaryHighlightBox">
-                    <span class="salary-currency">Estimated Salary</span>
-                    <h1 class="salary-amount" id="predSalaryVal">{{ prediction.predicted_salary_formatted if prediction else '18.50 LPA' }}</h1>
-                    <div class="salary-bounds" id="predRangeVal">
-                        95% Confidence Range: <strong>{{ prediction.range_formatted if prediction else '15.80 - 21.20 LPA' }}</strong>
+                <!-- Main Big Salary KPI -->
+                <div class="salary-display-container">
+                    <span class="currency-symbol">₹</span>
+                    <span class="salary-number" id="pred-salary-num">{{ prediction.predicted_salary if prediction else '18.86' }}</span>
+                    <span class="salary-unit">LPA</span>
+                </div>
+
+                <!-- Salary Bracket & Confidence Interval -->
+                <div class="salary-meta-row">
+                    <div class="salary-bracket-badge" id="pred-bracket" style="border-color: {{ prediction.bracket_color if prediction else '#10b981' }}; color: {{ prediction.bracket_color if prediction else '#34d399' }};">
+                        <span>{{ prediction.bracket_icon if prediction else '🌟' }}</span>
+                        <span>{{ prediction.bracket if prediction else 'Super Dream Tier (> 18 LPA)' }}</span>
                     </div>
                 </div>
 
-                <!-- Tier Badge -->
-                <div class="tier-banner" id="tierBanner" style="border-color: {{ prediction.bracket_color if prediction else '#10b981' }};">
-                    <span class="tier-icon" id="tierIcon">{{ prediction.bracket_icon if prediction else '🌟' }}</span>
-                    <div class="tier-info">
-                        <strong id="tierName">{{ prediction.bracket if prediction else 'Super Dream Tier' }}</strong>
-                        <span class="tier-prob" id="tierProb">Placement Likelihood: {{ prediction.placement_probability if prediction else '98%' }}</span>
+                <div class="confidence-box">
+                    <div class="conf-item">
+                        <span class="conf-label">95% Approximate Range:</span>
+                        <span class="conf-val" id="pred-range">{{ prediction.range_formatted if prediction else '17.20 - 20.50 LPA' }}</span>
+                    </div>
+                    <div class="conf-item">
+                        <span class="conf-label">Placement Probability:</span>
+                        <span class="conf-val" id="pred-prob" style="color: #34d399;">{{ prediction.placement_probability if prediction else '99.2%' }}</span>
+                    </div>
+                    <div class="conf-item">
+                        <span class="conf-label">Engine:</span>
+                        <span class="conf-val" id="pred-engine" style="color: #38bdf8; font-size: 0.8rem;">{{ prediction.model_display_name if prediction else 'XGBoost Regressor' }}</span>
                     </div>
                 </div>
 
-                <!-- Top Positive & Negative Drivers -->
-                <div class="drivers-box">
-                    <h4>Top Feature Drivers</h4>
-                    
-                    <div class="driver-group">
-                        <span class="driver-heading positive-heading">▲ Highest Positive Boosters</span>
-                        <ul class="driver-list" id="posDriverList">
-                            {% if prediction and prediction.top_positives %}
-                                {% for item in prediction.top_positives %}
-                                    <li>
-                                        <span class="driver-name">{{ item.feature }} ({{ item.raw_value }})</span>
-                                        <span class="driver-tag pos-tag">+{{ item.contribution }} LPA</span>
-                                    </li>
-                                {% endfor %}
-                            {% else %}
-                                <li><span>CGPA (9.2)</span><span class="driver-tag pos-tag">+3.42 LPA</span></li>
-                            {% endif %}
-                        </ul>
+                <!-- Multi-Model Side-by-Side Comparison -->
+                {% if prediction and prediction.all_model_predictions %}
+                    <div class="waterfall-section" style="margin-top: 1.25rem;">
+                        <span class="waterfall-title">🤖 Multi-Model Consensus Breakdown:</span>
+                        <div style="display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.5rem;">
+                            {% for mkey, mpred in prediction.all_model_predictions.items() %}
+                                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.6); padding: 0.4rem 0.75rem; border-radius: 6px; font-size: 0.85rem; border: 1px solid rgba(255, 255, 255, 0.04);">
+                                    <span style="color: #cbd5e1;">{{ mpred.name.split('(')[0] }}</span>
+                                    <strong style="color: #38bdf8;">{{ mpred.formatted }}</strong>
+                                </div>
+                            {% endfor %}
+                        </div>
                     </div>
+                {% endif %}
 
-                    <div class="driver-group" style="margin-top: 0.75rem;">
-                        <span class="driver-heading negative-heading">▼ Key Negative / Baseline Offsets</span>
-                        <ul class="driver-list" id="negDriverList">
-                            {% if prediction and prediction.top_negatives %}
-                                {% for item in prediction.top_negatives %}
-                                    <li>
-                                        <span class="driver-name">{{ item.feature }} ({{ item.raw_value }})</span>
-                                        <span class="driver-tag neg-tag">{{ item.contribution }} LPA</span>
-                                    </li>
-                                {% endfor %}
-                            {% else %}
-                                <li><span>No negative penalties</span><span class="driver-tag" style="background: rgba(255,255,255,0.05);">0.00</span></li>
-                            {% endif %}
-                        </ul>
+                <!-- Feature Impact Waterfall List -->
+                <div class="waterfall-section" style="margin-top: 1.25rem;">
+                    <span class="waterfall-title">Top Influencing Factors:</span>
+                    <div class="waterfall-list" id="waterfall-container">
+                        {% if prediction %}
+                            {% for item in prediction.top_positives %}
+                                <div class="waterfall-row pos">
+                                    <span class="feat-name">▲ {{ item.feature }} ({{ item.raw_value }})</span>
+                                    <span class="feat-contrib">+{{ item.contribution }} LPA</span>
+                                </div>
+                            {% endfor %}
+                            {% for item in prediction.top_negatives %}
+                                <div class="waterfall-row neg">
+                                    <span class="feat-name">▼ {{ item.feature }} ({{ item.raw_value }})</span>
+                                    <span class="feat-contrib">{{ item.contribution }} LPA</span>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
                     </div>
-                </div>
-
-                <!-- Feature Waterfall Chart -->
-                <div class="waterfall-box">
-                    <h4>Feature Attribution Waterfall</h4>
-                    <div style="height: 220px; position: relative;">
-                        <canvas id="waterfallChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- Linear Equation Baseline Note -->
-                <div class="baseline-note">
-                    Baseline Model Intercept ($\beta_0$): <strong id="interceptVal">{{ prediction.intercept if prediction else '12.50' }} LPA</strong>. Feature contributions add or subtract from this baseline according to fitted regression weights.
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Scripts for Live Dynamic Updating -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Presets & Real-Time Sync JS -->
     <script>
-        const presetData = {{ presets | tojson }};
-        let initialWaterfall = {{ (prediction.waterfall if prediction else []) | tojson }};
-        let waterfallChart = null;
+        const PRESET_DATA = {{ presets | tojson }};
 
-        // Slider value live badge update
-        function updateSliderBadge(slider) {
-            const name = slider.name;
-            const unit = slider.getAttribute('data-unit') || '';
-            const badge = document.getElementById('val-badge-' + name);
-            if (badge) {
-                badge.innerText = slider.value + ' ' + unit;
-            }
-            triggerDynamicPrediction();
+        // Model selector change handler
+        const modelSelect = document.getElementById('model_choice_select');
+        const formModelHidden = document.getElementById('form_model_choice');
+        
+        if (modelSelect && formModelHidden) {
+            modelSelect.addEventListener('change', function() {
+                formModelHidden.value = this.value;
+                triggerLivePrediction();
+            });
         }
 
-        // Initialize Waterfall Chart
-        function initWaterfallChart(items) {
-            const ctx = document.getElementById('waterfallChart').getContext('2d');
-            const labels = items.map(i => i.feature);
-            const data = items.map(i => i.contribution);
-            const bgColors = data.map(v => v >= 0 ? 'rgba(52, 211, 153, 0.8)' : 'rgba(248, 113, 113, 0.8)');
-            const borderColors = data.map(v => v >= 0 ? '#10b981' : '#ef4444');
-
-            if (waterfallChart) {
-                waterfallChart.destroy();
+        // Slider badge updater
+        function updateSliderBadge(el) {
+            const name = el.getAttribute('name');
+            const unit = el.getAttribute('data-unit') || '';
+            const badge = document.getElementById('val-badge-'+name);
+            if (badge) {
+                badge.innerText = `${el.value} ${unit}`;
             }
+        }
 
-            waterfallChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'LPA Contribution',
-                        data: data,
-                        backgroundColor: bgColors,
-                        borderColor: borderColors,
-                        borderWidth: 1,
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: {
-                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                            ticks: { font: { size: 10 } }
-                        },
-                        y: {
-                            grid: { display: false },
-                            ticks: { font: { size: 10 } }
+        // Preset button click handler
+        const presetBtns = document.querySelectorAll('.preset-btn');
+        presetBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                presetBtns.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                const presetKey = this.getAttribute('data-preset');
+                const p = PRESET_DATA[presetKey];
+                if (!p) return;
+
+                const form = document.getElementById('predictionForm');
+                for (const [fname, val] of Object.entries(p.features)) {
+                    const field = form.elements[fname];
+                    if (field) {
+                        field.value = val;
+                        const badge = document.getElementById('val-badge-'+fname);
+                        if (badge) {
+                            const unit = field.getAttribute('data-unit') || '';
+                            badge.innerText = `${val} ${unit}`;
                         }
-                    },
-                    plugins: {
-                        legend: { display: false }
                     }
                 }
+                triggerLivePrediction();
             });
-        }
+        });
 
-        // Gather all inputs into a dictionary
-        function getFormFeatures() {
-            const features = {};
-            const inputs = document.querySelectorAll('.input-sync');
-            inputs.forEach(input => {
-                features[input.name] = input.value;
-            });
-            return features;
-        }
-
-        // Live Debounced Predict AJAX Call
-        let debounceTimer = null;
-        function triggerDynamicPrediction() {
+        // Real-time live prediction via fetch API
+        let debounceTimer;
+        function triggerLivePrediction() {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
-                const features = getFormFeatures();
+                const form = document.getElementById('predictionForm');
+                const formData = new FormData(form);
+                const features = {};
+                for (const [k, v] of formData.entries()) {
+                    if (k !== 'model_choice') features[k] = v;
+                }
+                const modelChoice = modelSelect ? modelSelect.value : 'xgboost';
+
                 fetch("{{ url_for('api_predict') }}", {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ features: features })
+                    body: JSON.stringify({ features: features, model_choice: modelChoice })
                 })
                 .then(res => res.json())
                 .then(data => {
                     if (data.success && data.prediction) {
-                        updatePredictionUI(data.prediction);
+                        const pred = data.prediction;
+                        document.getElementById('pred-salary-num').innerText = pred.predicted_salary;
+                        document.getElementById('pred-range').innerText = pred.range_formatted;
+                        document.getElementById('pred-prob').innerText = pred.placement_probability;
+                        document.getElementById('pred-engine').innerText = pred.model_display_name;
+                        
+                        const bracketEl = document.getElementById('pred-bracket');
+                        bracketEl.style.borderColor = pred.bracket_color;
+                        bracketEl.style.color = pred.bracket_color;
+                        bracketEl.innerHTML = `<span>${pred.bracket_icon}</span> <span>${pred.bracket}</span>`;
+
+                        // Rebuild waterfall
+                        const wContainer = document.getElementById('waterfall-container');
+                        if (wContainer) {
+                            let html = '';
+                            pred.top_positives.forEach(item => {
+                                html += `<div class="waterfall-row pos"><span class="feat-name">▲ ${item.feature} (${item.raw_value})</span><span class="feat-contrib">+${item.contribution} LPA</span></div>`;
+                            });
+                            pred.top_negatives.forEach(item => {
+                                html += `<div class="waterfall-row neg"><span class="feat-name">▼ ${item.feature} (${item.raw_value})</span><span class="feat-contrib">${item.contribution} LPA</span></div>`;
+                            });
+                            wContainer.innerHTML = html;
+                        }
                     }
                 })
-                .catch(err => console.error("Dynamic prediction error:", err));
+                .catch(err => console.error("Live prediction error:", err));
             }, 120);
         }
 
-        // Update UI Elements with Live Prediction Results
-        function updatePredictionUI(p) {
-            document.getElementById('predSalaryVal').innerText = p.predicted_salary_formatted;
-            document.getElementById('predRangeVal').innerHTML = `95% Confidence Range: <strong>${p.range_formatted}</strong>`;
-            
-            const banner = document.getElementById('tierBanner');
-            banner.style.borderColor = p.bracket_color;
-            document.getElementById('tierIcon').innerText = p.bracket_icon;
-            document.getElementById('tierName').innerText = p.bracket;
-            document.getElementById('tierProb').innerText = `Placement Likelihood: ${p.placement_probability}`;
-            document.getElementById('interceptVal').innerText = `${p.intercept} LPA`;
-
-            // Update positive drivers
-            const posList = document.getElementById('posDriverList');
-            posList.innerHTML = '';
-            if (p.top_positives && p.top_positives.length > 0) {
-                p.top_positives.forEach(item => {
-                    posList.innerHTML += `<li><span class="driver-name">${item.feature} (${item.raw_value})</span><span class="driver-tag pos-tag">+${item.contribution} LPA</span></li>`;
-                });
-            } else {
-                posList.innerHTML = '<li><span>No major positive drivers</span><span class="driver-tag" style="background: rgba(255,255,255,0.05);">0.00</span></li>';
-            }
-
-            // Update negative drivers
-            const negList = document.getElementById('negDriverList');
-            negList.innerHTML = '';
-            if (p.top_negatives && p.top_negatives.length > 0) {
-                p.top_negatives.forEach(item => {
-                    negList.innerHTML += `<li><span class="driver-name">${item.feature} (${item.raw_value})</span><span class="driver-tag neg-tag">${item.contribution} LPA</span></li>`;
-                });
-            } else {
-                negList.innerHTML = '<li><span>No negative penalties</span><span class="driver-tag" style="background: rgba(255,255,255,0.05);">0.00</span></li>';
-            }
-
-            // Update Waterfall Chart
-            if (p.waterfall) {
-                initWaterfallChart(p.waterfall);
-            }
-        }
-
-        // Preset button click handling
-        const presetButtons = document.querySelectorAll('.preset-btn');
-        presetButtons.forEach(btn => {
-            btn.addEventListener('click', () => {
-                presetButtons.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                const presetKey = btn.getAttribute('data-preset');
-                const profile = presetData[presetKey];
-                if (profile && profile.features) {
-                    for (const [key, val] of Object.entries(profile.features)) {
-                        const input = document.getElementById('field-' + key);
-                        if (input) {
-                            input.value = val;
-                            if (input.type === 'range') {
-                                const unit = input.getAttribute('data-unit') || '';
-                                const badge = document.getElementById('val-badge-' + key);
-                                if (badge) badge.innerText = val + ' ' + unit;
-                            }
-                        }
-                    }
-                    triggerDynamicPrediction();
-                }
-            });
-        });
-
-        // Listen on select dropdown changes
-        document.querySelectorAll('select.input-sync').forEach(s => {
-            s.addEventListener('change', triggerDynamicPrediction);
-        });
-
-        // Initialize waterfall chart on load
-        window.addEventListener('load', () => {
-            if (initialWaterfall && initialWaterfall.length > 0) {
-                initWaterfallChart(initialWaterfall);
-            }
+        // Attach live listener to all inputs
+        document.querySelectorAll('.input-sync').forEach(inp => {
+            inp.addEventListener('input', triggerLivePrediction);
+            inp.addEventListener('change', triggerLivePrediction);
         });
     </script>
 {% endblock %}

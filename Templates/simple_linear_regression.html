@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+
+{% block title %}Simple Linear Regression - Placement Prediction Studio{% endblock %}
+
+{% block content %}
+    <div class="page-header">
+        <h2>📈 Simple Linear Regression (Univariate)</h2>
+        <p>Model the direct relationship between a single independent candidate feature (such as <strong>CGPA</strong> or <strong>Coding Score</strong>) and the target <strong>Salary Package (LPA)</strong> using ordinary least squares ($y = mx + c$).</p>
+    </div>
+
+    {% if error %}
+        <div class="error">
+            {{ error }}
+        </div>
+    {% endif %}
+
+    {% if summary %}
+        <!-- Hyperparameters & Feature Selection Toolbar -->
+        <div class="dashboard-section model-config-card">
+            <h3>⚙️ Univariate Feature &amp; Split Configuration</h3>
+            <form id="slrForm" method="GET" action="{{ url_for('simple_linear_regression_route') }}" class="config-grid">
+                <div class="config-item">
+                    <label for="feature"><strong>Independent Feature ($X$):</strong></label>
+                    <select id="feature" name="feature" class="eda-select">
+                        {% for f in summary.available_features %}
+                            <option value="{{ f.name }}" {% if f.selected %}selected{% endif %}>{{ f.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="config-item">
+                    <label for="test_size"><strong>Test Split Ratio:</strong> <span id="test-size-val">{{ (params.test_size * 100) | int }}%</span></label>
+                    <input type="range" id="test_size" name="test_size" min="0.10" max="0.40" step="0.05" value="{{ params.test_size }}" class="custom-range" oninput="document.getElementById('test-size-val').innerText = Math.round(this.value * 100) + '%'">
+                </div>
+
+                <div class="config-item">
+                    <label for="data_filter"><strong>Training Population:</strong></label>
+                    <select id="data_filter" name="data_filter" class="eda-select">
+                        <option value="all" {% if params.data_filter == 'all' %}selected{% endif %}>All Students (50,000 Records)</option>
+                        <option value="placed_only" {% if params.data_filter == 'placed_only' %}selected{% endif %}>Placed Candidates Only (Salary &gt; 0)</option>
+                    </select>
+                </div>
+
+                <div class="config-item action-col">
+                    <button type="submit" class="btn btn-primary btn-glow" id="trainBtn">
+                        ⚡ Fit Simple Regression
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Metric KPI Cards -->
+        <div class="metrics-container">
+            <div class="metric-card glow-indigo">
+                <div class="metric-icon">🎯</div>
+                <div class="metric-body">
+                    <span class="metric-label">R² Score (Goodness of Fit)</span>
+                    <div class="metric-value">{{ (summary.metrics.test_r2 * 100) | round(2) }}%</div>
+                    <span class="metric-sub">Train R²: {{ (summary.metrics.train_r2 * 100) | round(2) }}%</span>
+                </div>
+            </div>
+
+            <div class="metric-card glow-purple">
+                <div class="metric-icon">📐</div>
+                <div class="metric-body">
+                    <span class="metric-label">Slope ($m$) Rate of Return</span>
+                    <div class="metric-value">{{ summary.slope }}</div>
+                    <span class="metric-sub">Δ LPA per unit of {{ summary.feature }}</span>
+                </div>
+            </div>
+
+            <div class="metric-card glow-cyan">
+                <div class="metric-icon">📉</div>
+                <div class="metric-body">
+                    <span class="metric-label">Mean Absolute Error (MAE)</span>
+                    <div class="metric-value">±{{ summary.metrics.mae }} LPA</div>
+                    <span class="metric-sub">Avg residual error</span>
+                </div>
+            </div>
+
+            <div class="metric-card glow-amber">
+                <div class="metric-icon">📊</div>
+                <div class="metric-body">
+                    <span class="metric-label">Root Mean Sq. Error (RMSE)</span>
+                    <div class="metric-value">{{ summary.metrics.rmse }} LPA</div>
+                    <span class="metric-sub">MSE: {{ summary.metrics.mse }}</span>
+                </div>
+            </div>
+
+            <div class="metric-card glow-emerald">
+                <div class="metric-icon">🔄</div>
+                <div class="metric-body">
+                    <span class="metric-label">5-Fold CV Mean R²</span>
+                    <div class="metric-value">{{ (summary.metrics.cv_mean * 100) | round(2) }}%</div>
+                    <span class="metric-sub">Std Dev: ±{{ summary.metrics.cv_std }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mathematical Equation Box -->
+        <div class="dashboard-section formula-box">
+            <div class="formula-header">
+                <h3>Linear Regression Formulation</h3>
+                <span class="pill-badge">Univariate Closed-Form Solution</span>
+            </div>
+            <div class="math-expression">
+                $$m = \frac{\sum (X_i - \bar{X})(Y_i - \bar{Y})}{\sum (X_i - \bar{X})^2}, \quad c = \bar{Y} - m \bar{X}$$
+            </div>
+            <div class="equation-rendered">
+                <strong>Fitted Model Equation:</strong>
+                <code>{{ summary.equation_preview }}</code>
+            </div>
+            <div class="intercept-stat">
+                Slope ($m$): <span class="intercept-val">{{ summary.slope }}</span> &nbsp;|&nbsp;
+                Baseline Intercept ($c$): <span class="intercept-val">{{ summary.intercept }} LPA</span> &nbsp;|&nbsp;
+                Fit Duration: <span class="intercept-val">{{ summary.fit_duration }}s</span>
+            </div>
+        </div>
+
+        <!-- Interactive 2D Scatter & Regression Best-Fit Line -->
+        <div class="dashboard-section">
+            <div class="section-title-row">
+                <h3>📉 Line of Best Fit &amp; Sample Points</h3>
+                <div class="btn-group diagnostic-tab-group">
+                    <button type="button" class="btn active" data-tab="fit-line">Scatter &amp; Regression Line</button>
+                    <button type="button" class="btn" data-tab="residual-hist">Residuals Distribution</button>
+                </div>
+            </div>
+
+            <!-- Tab 1: Line of Best Fit -->
+            <div id="tab-fit-line" class="diagnostic-tab-content">
+                <div class="chart-desc">
+                    Displaying ground-truth student samples of <strong>{{ summary.feature }}</strong> vs. <strong>Salary Package (LPA)</strong> alongside the fitted OLS regression line and 95% confidence interval boundaries.
+                </div>
+                <div class="diagnostic-chart-container" style="height: 480px;">
+                    <canvas id="slrScatterChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Tab 2: Residuals Histogram -->
+            <div id="tab-residual-hist" class="diagnostic-tab-content hidden">
+                <div class="chart-desc">
+                    Distribution of prediction errors ($e_i = y_i - \hat{y}_i$). Centered at <strong>Mean: {{ summary.residual_histogram.mean }} LPA</strong> (Std Dev: {{ summary.residual_histogram.std }}).
+                </div>
+                <div class="diagnostic-chart-container" style="height: 400px;">
+                    <canvas id="slrResidualHistChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live 1D Interactive Feature Simulator -->
+        <div class="dashboard-section model-config-card">
+            <h3>⚡ Live 1D {{ summary.feature }} Salary Estimator</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1.25rem;">Move the slider below to test what this simple linear model predicts for any given value of <strong>{{ summary.feature }}</strong> in real time:</p>
+            
+            <div style="display: flex; gap: 2rem; align-items: center; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 280px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <label for="liveSlider"><strong>{{ summary.feature }} Value:</strong></label>
+                        <span id="sliderDisplayVal" style="font-size: 1.2rem; font-weight: 700; color: #60a5fa;">{{ summary.x_min + (summary.x_max - summary.x_min) * 0.5 | round(1) }}</span>
+                    </div>
+                    <input type="range" id="liveSlider" min="{{ summary.x_min }}" max="{{ summary.x_max }}" step="0.1" value="{{ (summary.x_min + summary.x_max) / 2 }}" class="custom-range">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.3rem;">
+                        <span>Min: {{ summary.x_min }}</span>
+                        <span>Max: {{ summary.x_max }}</span>
+                    </div>
+                </div>
+
+                <div class="metric-card glow-emerald" style="min-width: 240px; margin-bottom: 0;">
+                    <div class="metric-icon">💰</div>
+                    <div class="metric-body">
+                        <span class="metric-label">Estimated Salary</span>
+                        <div class="metric-value" id="liveEstimatedSalary">-- LPA</div>
+                        <span class="metric-sub" id="liveSalaryFormula">via fitted slope &amp; intercept</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scripts for Dynamic Charts -->
+        <script>
+            const slope = {{ summary.slope }};
+            const intercept = {{ summary.intercept }};
+            const linePoints = {{ summary.line_points | tojson }};
+            const lineUpper = {{ summary.line_upper | tojson }};
+            const lineLower = {{ summary.line_lower | tojson }};
+            const scatterPoints = {{ summary.scatter_points | tojson }};
+            const residualHist = {{ summary.residual_histogram | tojson }};
+
+            // Tab Switching
+            const tabButtons = document.querySelectorAll('.diagnostic-tab-group .btn');
+            tabButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    tabButtons.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    const targetTab = this.getAttribute('data-tab');
+                    document.querySelectorAll('.diagnostic-tab-content').forEach(c => c.classList.add('hidden'));
+                    document.getElementById('tab-' + targetTab).classList.remove('hidden');
+                });
+            });
+
+            // 1. Scatter Chart with Line of Best Fit
+            const ctxScatter = document.getElementById('slrScatterChart').getContext('2d');
+            new Chart(ctxScatter, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: 'Student Samples',
+                            data: scatterPoints,
+                            backgroundColor: 'rgba(99, 102, 241, 0.45)',
+                            borderColor: 'rgba(99, 102, 241, 0.8)',
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                            order: 2
+                        },
+                        {
+                            type: 'line',
+                            label: 'Regression Line (y = mx + c)',
+                            data: linePoints,
+                            borderColor: '#38bdf8',
+                            backgroundColor: 'transparent',
+                            borderWidth: 3,
+                            pointRadius: 0,
+                            order: 1
+                        },
+                        {
+                            type: 'line',
+                            label: '95% Upper Bound',
+                            data: lineUpper,
+                            borderColor: 'rgba(56, 189, 248, 0.3)',
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            fill: false,
+                            order: 3
+                        },
+                        {
+                            type: 'line',
+                            label: '95% Lower Bound',
+                            data: lineLower,
+                            borderColor: 'rgba(56, 189, 248, 0.3)',
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            fill: false,
+                            order: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#cbd5e1' }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: (${context.parsed.x}, ${context.parsed.y} LPA)`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: '{{ summary.feature }}', color: '#94a3b8' },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Salary Package (LPA)', color: '#94a3b8' },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8' }
+                        }
+                    }
+                }
+            });
+
+            // 2. Residual Histogram Chart
+            const ctxRes = document.getElementById('slrResidualHistChart').getContext('2d');
+            const histLabels = residualHist.bin_edges.slice(0, -1).map((b, i) => `${b} to ${residualHist.bin_edges[i+1]}`);
+            new Chart(ctxRes, {
+                type: 'bar',
+                data: {
+                    labels: histLabels,
+                    datasets: [{
+                        label: 'Residual Frequency',
+                        data: residualHist.counts,
+                        backgroundColor: 'rgba(168, 85, 247, 0.65)',
+                        borderColor: '#a855f7',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#cbd5e1' } }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Residual (Actual - Predicted LPA)', color: '#94a3b8' },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8', maxRotation: 45 }
+                        },
+                        y: {
+                            title: { display: true, text: 'Count of Students', color: '#94a3b8' },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8' }
+                        }
+                    }
+                }
+            });
+
+            // 3. Live 1D Slider Logic
+            const liveSlider = document.getElementById('liveSlider');
+            const sliderDisplayVal = document.getElementById('sliderDisplayVal');
+            const liveEstimatedSalary = document.getElementById('liveEstimatedSalary');
+            const liveSalaryFormula = document.getElementById('liveSalaryFormula');
+
+            function updateLiveEstimate() {
+                const xVal = parseFloat(liveSlider.value);
+                sliderDisplayVal.innerText = xVal.toFixed(1);
+                const pred = Math.max(0.0, (slope * xVal + intercept));
+                liveEstimatedSalary.innerText = pred.toFixed(2) + ' LPA';
+                liveSalaryFormula.innerText = `${slope.toFixed(3)} × ${xVal.toFixed(1)} + (${intercept.toFixed(2)})`;
+            }
+
+            liveSlider.addEventListener('input', updateLiveEstimate);
+            updateLiveEstimate();
+        </script>
+    {% endif %}
+{% endblock %}

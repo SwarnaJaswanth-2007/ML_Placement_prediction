@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}Model Benchmark & Leaderboard - Placement Prediction Studio{% endblock %}
+
+{% block content %}
+    <div class="page-header">
+        <h2>🏆 Model Benchmark &amp; Leaderboard</h2>
+        <p>Comprehensive head-to-head performance evaluation of all 8 algorithms evaluated on identical train/test splits. Compare <strong>accuracy ($R^2$)</strong>, <strong>error margins (MAE/RMSE)</strong>, <strong>training latency</strong>, and <strong>consensus feature importance</strong>.</p>
+    </div>
+
+    {% if error %}
+        <div class="error">
+            {{ error }}
+        </div>
+    {% endif %}
+
+    {% if summary %}
+        <!-- Champion Model Spotlight Banner -->
+        <div class="dashboard-section callout-section" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(56, 189, 248, 0.15)); border: 1px solid rgba(56, 189, 248, 0.3);">
+            <div class="callout-content">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                    <span style="font-size: 2rem;">🥇</span>
+                    <div>
+                        <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #38bdf8;">Overall Leaderboard Winner</span>
+                        <h3 style="margin-bottom: 0;">{{ summary.best_model.name }}</h3>
+                    </div>
+                </div>
+                <p>Achieved top predictive fidelity with <strong>{{ summary.best_model.test_r2_pct }}% Test R²</strong> and the lowest error margin of <strong>±{{ summary.best_model.mae }} LPA MAE</strong> (Trained in {{ summary.best_model.duration_ms }} ms).</p>
+            </div>
+            <a href="{{ url_for('prediction_route', model_choice=summary.best_model.key) }}" class="btn btn-primary btn-glow-large">
+                ⚡ Predict with Champion
+            </a>
+        </div>
+
+        <!-- Leaderboard Table Card -->
+        <div class="dashboard-section">
+            <div class="section-title-row">
+                <h3>📊 Performance Leaderboard</h3>
+                <span class="pill-badge">Sorted by Test R² Score</span>
+            </div>
+
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Algorithm Architecture</th>
+                            <th>Model Family</th>
+                            <th>Test R² (Accuracy)</th>
+                            <th>Train R²</th>
+                            <th>MAE (Error)</th>
+                            <th>RMSE</th>
+                            <th>Training Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in summary.leaderboard %}
+                            <tr {% if loop.first %}style="background: rgba(99, 102, 241, 0.08);"{% endif %}>
+                                <td>
+                                    <span class="rank-badge {{ item.badge_class }}">{{ item.badge }}</span>
+                                </td>
+                                <td><strong>{{ item.name }}</strong></td>
+                                <td>
+                                    <span class="pill-badge" style="background: {% if item.type == 'Boosting' %}rgba(99, 102, 241, 0.15); color: #818cf8;{% else %}rgba(56, 189, 248, 0.15); color: #38bdf8;{% endif %}">
+                                        {{ item.type }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <div style="width: 70px; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                                            <div style="width: {{ item.test_r2_pct }}%; height: 100%; background: #34d399;"></div>
+                                        </div>
+                                        <strong style="color: #34d399;">{{ item.test_r2_pct }}%</strong>
+                                    </div>
+                                </td>
+                                <td style="color: var(--text-secondary);">{{ item.train_r2_pct }}%</td>
+                                <td><strong>±{{ item.mae }} LPA</strong></td>
+                                <td><code>{{ item.rmse }} LPA</code></td>
+                                <td style="color: var(--text-muted);">{{ item.duration_ms }} ms</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Comparative Multi-Chart Visualizer -->
+        <div class="dashboard-section">
+            <div class="section-title-row">
+                <h3>📈 Comparative Visualizations</h3>
+            </div>
+
+            <div class="coef-grid">
+                <!-- Chart 1: R2 Score Comparison -->
+                <div class="coef-chart-panel">
+                    <h4>Test R² Accuracy Comparison (%)</h4>
+                    <div style="height: 380px;">
+                        <canvas id="r2CompareChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 2: RMSE Error Comparison -->
+                <div class="coef-chart-panel">
+                    <h4>RMSE Error Comparison (Lower is Better)</h4>
+                    <div style="height: 380px;">
+                        <canvas id="rmseCompareChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Training Latency vs Accuracy Scatter / Bar -->
+        <div class="dashboard-section">
+            <div class="section-title-row">
+                <h3>⚡ Accuracy vs. Computational Latency Trade-Off</h3>
+            </div>
+            <div class="diagnostic-chart-container" style="height: 350px;">
+                <canvas id="latencyChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Dynamic Chart.js Script -->
+        <script>
+            const labels = {{ summary.chart_labels | tojson }};
+            const r2Data = {{ summary.chart_r2 | tojson }};
+            const rmseData = {{ summary.chart_rmse | tojson }};
+            const durationData = {{ summary.chart_duration | tojson }};
+
+            // 1. R2 Score Comparison
+            const ctxR2 = document.getElementById('r2CompareChart').getContext('2d');
+            new Chart(ctxR2, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Test R² (%)',
+                        data: r2Data,
+                        backgroundColor: r2Data.map(v => v >= 90 ? 'rgba(52, 211, 153, 0.75)' : 'rgba(99, 102, 241, 0.75)'),
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            min: 0,
+                            max: 100,
+                            title: { display: true, text: 'R² Score (%)', color: '#94a3b8' },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#cbd5e1' }
+                        }
+                    }
+                }
+            });
+
+            // 2. RMSE Comparison
+            const ctxRmse = document.getElementById('rmseCompareChart').getContext('2d');
+            new Chart(ctxRmse, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'RMSE (LPA)',
+                        data: rmseData,
+                        backgroundColor: 'rgba(248, 113, 113, 0.75)',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'RMSE (LPA)', color: '#94a3b8' },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#cbd5e1' }
+                        }
+                    }
+                }
+            });
+
+            // 3. Training Duration Bar Chart
+            const ctxLatency = document.getElementById('latencyChart').getContext('2d');
+            new Chart(ctxLatency, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Training Latency (ms)',
+                        data: durationData,
+                        backgroundColor: 'rgba(56, 189, 248, 0.7)',
+                        borderColor: '#38bdf8',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#cbd5e1' } }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8', maxRotation: 45 }
+                        },
+                        y: {
+                            title: { display: true, text: 'Execution Time (ms)', color: '#94a3b8' },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8' }
+                        }
+                    }
+                }
+            });
+        </script>
+    {% endif %}
+{% endblock %}

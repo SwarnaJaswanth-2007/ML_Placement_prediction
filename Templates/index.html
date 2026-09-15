@@ -1,42 +1,61 @@
 {% extends "base.html" %}
 
-{% block title %}Home Dashboard - Placement Prediction Project{% endblock %}
+{% block title %}Home Dashboard - Placement Prediction ML Studio{% endblock %}
 
 {% block content %}
-    <h2>Welcome to Placement Prediction Dashboard</h2>
-    <p>This ML web application guides you through loading datasets, cleaning and preprocessing variables, training predictive models, and running placement predictions.</p>
+    <div class="page-header">
+        <h2>Placement Prediction &amp; Salary Estimation ML Studio</h2>
+        <p>An end-to-end Machine Learning web application covering data ingestion, preprocessing, EDA, <strong>Simple Linear Regression</strong>, <strong>Multilinear Regression</strong>, and advanced <strong>Boosting Techniques (AdaBoost, Gradient Boosting, XGBoost, LightGBM)</strong>.</p>
+    </div>
 
-    <h3 style="margin-top: 2rem;">Quick Access Options</h3>
+    <h3 style="margin-top: 1.5rem; margin-bottom: 1rem;">🚀 Quick Pipeline Access</h3>
     <div class="dashboard-grid">
         <a href="{{ url_for('data_loading') }}" class="dashboard-card">
             <div class="card-icon">📂</div>
-            <h4>Data Loading</h4>
-            <p>Load the placement dataset, view descriptive metadata, duplicate stats, and browse original records.</p>
+            <h4>Data Ingestion</h4>
+            <p>Inspect raw dataset of 50,000 students, view column data types, missing value statistics, and duplicate checks.</p>
         </a>
 
         <a href="{{ url_for('preprocessing_route') }}" class="dashboard-card">
             <div class="card-icon">⚙️</div>
-            <h4>Preprocessing</h4>
-            <p>Impute missing values, convert categorical text features to numeric labels, and standardize values.</p>
+            <h4>Data Preprocessing</h4>
+            <p>Median imputation for missing assessment scores, categorical encoding, and Z-score standardization.</p>
         </a>
 
         <a href="{{ url_for('eda_route') }}" class="dashboard-card">
             <div class="card-icon">📊</div>
-            <h4>Exploratory Analysis</h4>
-            <p>Explore distributions, analyze categorical trends via charts, and view correlation heatmaps.</p>
+            <h4>Exploratory Analysis (EDA)</h4>
+            <p>Univariate distributions, box plots by college tier, placement rates, and correlation heatmaps.</p>
         </a>
 
-
-        <a href="{{ url_for('model_training_route') }}" class="dashboard-card">
-            <div class="card-icon">🧠</div>
-            <h4>Linear Regression</h4>
-            <p>Train OLS, Ridge, or Lasso regression models, inspect R² score, RMSE, coefficients, and diagnostic residual plots.</p>
+        <a href="{{ url_for('simple_linear_regression_route') }}" class="dashboard-card glow-indigo">
+            <div class="card-icon">📈</div>
+            <h4>Simple Linear Regression</h4>
+            <p>Univariate regression ($y = mx + c$) on any academic or test feature with 2D best-fit line &amp; confidence interval band.</p>
         </a>
 
-        <a href="{{ url_for('prediction_route') }}" class="dashboard-card">
+        <a href="{{ url_for('multilinear_regression_route') }}" class="dashboard-card glow-purple">
+            <div class="card-icon">📐</div>
+            <h4>Multilinear Regression</h4>
+            <p>OLS, Ridge (L2), Lasso (L1), and ElasticNet with VIF multicollinearity detection, coefficient rankings, and residual analysis.</p>
+        </a>
+
+        <a href="{{ url_for('boosting_route') }}" class="dashboard-card glow-cyan">
+            <div class="card-icon">⚡</div>
+            <h4>Boosting Studio</h4>
+            <p>Train &amp; tune <strong>AdaBoost</strong>, <strong>Gradient Boosting</strong>, <strong>XGBoost</strong>, and <strong>LightGBM</strong> with stagewise loss curves.</p>
+        </a>
+
+        <a href="{{ url_for('model_comparison_route') }}" class="dashboard-card glow-amber">
+            <div class="card-icon">🏆</div>
+            <h4>Model Benchmark &amp; Leaderboard</h4>
+            <p>Head-to-head comparison of all 8 models on identical splits for $R^2$, RMSE, MAE, latency, and consensus feature importance.</p>
+        </a>
+
+        <a href="{{ url_for('prediction_route') }}" class="dashboard-card glow-emerald">
             <div class="card-icon">🎯</div>
-            <h4>Salary Prediction</h4>
-            <p>Input candidate academics, technical scores, and experience to predict estimated placement salary package in LPA.</p>
+            <h4>Interactive Salary Predictor</h4>
+            <p>Real-time salary &amp; placement simulation with preset candidate profiles and multi-model consensus prediction.</p>
         </a>
     </div>
 {% endblock %}
